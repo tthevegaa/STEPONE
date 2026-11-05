@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const Employee = require("../models/Employee");
 const Client = require("../models/Client");
 const Account = require("../models/Account");
+const Transaction = require("../models/Transaction");
 
 
 class BankService {
@@ -13,6 +14,24 @@ class BankService {
     constructor(repository) {
         this.repository = repository;
     }
+
+
+    getCurrentDateTime() {
+
+        const now = new Date();
+
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const day = String(now.getDate()).padStart(2, "0");
+        const hours = String(now.getHours()).padStart(2, "0");
+        const minutes = String(now.getMinutes()).padStart(2, "0");
+        const seconds = String(now.getSeconds()).padStart(2, "0");
+
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+    }
+
+
 
     async isUsernameAvailable(username) {
 
@@ -47,6 +66,56 @@ class BankService {
 
         return crypto.randomInt(100000, 1000000).toString();
     }
+
+
+    async verifyPasskey(plainPasskey, hashedPasskey) {
+
+        if (!plainPasskey || !hashedPasskey) {
+            return false;
+        }
+
+        return await bcrypt.compare(plainPasskey, hashedPasskey);
+    }
+
+    
+    async validateWithdrawal(accountNumber, amount, passKey) {
+
+        if (!accountNumber || amount == null || !passKey) {
+            return null;
+        }
+
+        if (amount <= 0) {
+            return null;
+        }
+
+        const account = await this.getAccountByNumber(accountNumber);
+
+        if (!account) {
+            return null;
+        }
+
+        const client = await this.searchClientById(account.clientId);
+
+        if (!client) {
+            return null;
+        }
+
+        const validPasskey = await this.verifyPasskey(passKey, client.passkey);
+
+        if (!validPasskey) {
+            return null;
+        }
+
+        if (Number(account.balance) < Number(amount)) {
+            return null;
+        }
+
+        return {
+            account,
+            client
+        };
+    }
+
 
     async generateAccountNumber() {
 
@@ -233,6 +302,55 @@ class BankService {
     }
 
 
+    createTransactionObject(data, currentDate) {
+
+        return new Transaction(
+            null,
+            data.accountId, 
+            data.type, 
+            data.amount, 
+            currentDate
+        );
+
+    }
+
+
+    async registerTransaction(data) {
+
+        if (!data.accountId || !data.type || data.amount == null) {
+            return null;
+        }
+
+        if (data.amount <= 0.00) {
+            return null;
+        }
+
+
+        const currentDate = this.getCurrentDateTime();
+
+        const transaction = this.createTransactionObject(data, currentDate);
+
+
+        const transactionId = await this.repository.insertTransaction(transaction);
+        if (!transactionId) {
+            return null;
+        }
+
+
+        return {
+            transactionId,
+            accountId: data.accountId,
+            amount: data.amount, 
+            currentDate, 
+            type: data.type
+        }
+
+    }
+
+
+
+
+
     async searchClientById(id) {
 
         if (!id) {
@@ -249,7 +367,6 @@ class BankService {
         }
 
         return await this.repository.findClientByUsername(username);
-
     }
 
     async searchClientByEmail(email) {
@@ -282,7 +399,113 @@ class BankService {
 
 
 
+
+    async updateAccountBalance(accountId, newBalance) {
+
+        if (!accountId || newBalance == null) {
+            return null;
+        }
+
+        return await this.repository.updateAccountBalance(accountId, newBalance);
+
+    }
+
+
+    async deposit(account, amount) {
+
+        if (!account || amount == null) {
+            return null;
+        }
+
+        if (amount <= 0) {
+            return null;
+        }
+
+
+        const newBalance = Number(account.balance) + Number(amount);
+        const balanceUpdated = await this.updateAccountBalance(account.id, newBalance);
+        if (!balanceUpdated) {
+            return null;
+        }
+
+        
+        const data = {
+            accountId: account.id, 
+            type: "DEPOSIT", 
+            amount
+        }
+
+        const depositInfo = await this.registerTransaction(data);
+        if (!depositInfo) {
+            return null;
+        }
+
+
+        return depositInfo;
+
+    }
+
+
+    async withdraw(accountNumber, amount, passKey) {
+
+        if (!accountNumber || amount == null) {
+            return null;
+        }
+
+        if (amount <= 0) {
+            return null;
+        }
+
+        const currentAccount = await this.getAccountByNumber(accountNumber);
+        if (!currentAccount) {
+            return null;
+        }
+
+        const client = await this.searchClientById(currentAccount.clientId);
+        if (!client) {
+            return null;
+        }
+
+
+        const validPasskey = await this.verifyPasskey(passKey, client.passkey);
+        if (!validPasskey) {
+            return null;
+        }
+
+
+        if (Number(currentAccount.balance) < Number(amount)) {
+            return null;
+        }
+
+        const newBalance = Number(currentAccount.balance) - Number(amount);
+        const balanceUpdated = await this.updateAccountBalance(currentAccount.id, newBalance);
+        if (!balanceUpdated) {
+            return null;
+        }
+
+
+        const data = {
+            accountId: currentAccount.id, 
+            type: "WITHDRAW",
+            amount
+        }
+
+        const withdrawInfo = await this.registerTransaction(data);
+        if (!withdrawInfo) {
+            return null;
+        }
+
+
+
+        return withdrawInfo;
+
+    }
+
+
+
 }
 
 
 module.exports = BankService;
+
+

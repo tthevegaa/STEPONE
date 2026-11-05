@@ -1,6 +1,9 @@
 
+
+
 require("dotenv").config();
 const mysql = require("mysql2/promise");
+
 
 const pool = mysql.createPool({
     host: process.env.DB_HOST,
@@ -8,6 +11,7 @@ const pool = mysql.createPool({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME
 });
+
 
 module.exports = pool;
 
@@ -26,7 +30,7 @@ async function createTableEmployees() {
         email VARCHAR(150) NOT NULL UNIQUE, 
         employee_number INT NOT NULL UNIQUE, 
         position VARCHAR(250)
-    )`);
+    );`);
 
 } 
 
@@ -43,7 +47,7 @@ async function createTableClients() {
         phone VARCHAR(30),
         email VARCHAR(150) NOT NULL UNIQUE,
         passkey VARCHAR(200) NOT NULL
-    )`);
+    );`);
 
 }
 
@@ -55,8 +59,22 @@ async function createTableAccounts() {
         client_id INT NOT NULL UNIQUE,
         account_number VARCHAR(70) NOT NULL UNIQUE,
         balance DECIMAL(12, 4) NOT NULL DEFAULT 0.00
-    )`);
+    );`);
 
+}
+
+
+async function createTableTransactions() {
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS transactions(
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        account_id INT NOT NULL,
+        type VARCHAR(100) NOT NULL,
+        amount DECIMAL(12, 2) NOT NULL,
+        date DATETIME NOT NULL, 
+        FOREIGN KEY (account_id) REFERENCES accounts(id)
+    );`);
+    
 }
 
 
@@ -65,6 +83,7 @@ async function createTables() {
     await createTableEmployees();
     await createTableClients();
     await createTableAccounts();
+    await createTableTransactions();
 
 }
 

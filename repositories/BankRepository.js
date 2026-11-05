@@ -1,5 +1,7 @@
 
-
+const Employee = require("../models/Employee");
+const Client = require("../models/Client");
+const Account = require("../models/Account");
 
 
 
@@ -41,63 +43,233 @@ class BankRepository {
 
     }
 
+    async insertTransaction(transaction) {
+
+        const [result] = await this.pool.execute(`INSERT INTO transactions (account_id, type, amount, date) 
+            VALUES (?, ?, ?, ?)`, [transaction.accountId, transaction.type, transaction.amount, transaction.date]);
+        
+        return result.insertId;
+    }
+
 
 
 
     async findEmployeeByNumber(employeeNumber) {
 
         const [rows] = await this.pool.execute(
-            `SELECT * FROM employees WHERE employee_number = ?`,
-            [employeeNumber]
+            `SELECT * FROM employees WHERE employee_number = ?`, [employeeNumber]
         );
 
-        return rows[0] || null;
+        if (rows.length === 0) {
+            return null;
+        }
+
+
+        const row = rows[0];
+
+        return new Employee(
+            row.id,
+            row.username,
+            row.password,
+            row.first_name,
+            row.last_name,
+            row.phone,
+            row.email,
+            row.employee_number,
+            row.position
+        );
     }
+
 
     async findEmployeeByUsername(username) {
 
-        const [rows] = await this.pool.execute(`SELECT * FROM employees WHERE username = ?`, [username]);
-        return rows[0] || null;
+        const [rows] = await this.pool.execute(
+            `SELECT * FROM employees WHERE username = ?`, [username]
+        );
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+
+        const row = rows[0];
+
+
+        return new Employee(
+            row.id,
+            row.username,
+            row.password,
+            row.first_name,
+            row.last_name,
+            row.phone,
+            row.email,
+            row.employee_number,
+            row.position
+        );
+
     }
+
 
     async findEmployeeByEmail(email) {
 
-        const [rows] = await this.pool.execute(`SELECT * FROM employees WHERE email = ?`, [email]);
-        return rows[0] || null;
+        const [rows] = await this.pool.execute(
+            `SELECT * FROM employees WHERE email = ?`, [email]
+        );
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+
+        const row = rows[0];
+
+        return new Employee(
+            row.id,
+            row.username,
+            row.password,
+            row.first_name,
+            row.last_name,
+            row.phone,
+            row.email,
+            row.employee_number,
+            row.position
+        );
 
     }
+
 
     async findClientById(id) {
 
-        const [rows] = await this.pool.execute(`SELECT * FROM clients WHERE id = ?`, [id]);
-        return rows[0] || null;
+        const [rows] = await this.pool.execute(
+            `SELECT * FROM clients WHERE id = ?`, [id]
+        );
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+
+        const row = rows[0];
+
+        return new Client(
+            row.id,
+            row.username,
+            row.password,
+            row.first_name,
+            row.last_name,
+            row.phone,
+            row.email,
+            row.passkey
+        );
+
     }
+
 
     async findClientByUsername(username) {
 
+
         const [rows] = await this.pool.execute(`SELECT * FROM clients WHERE username = ?`, [username]);
-        return rows[0] || null;
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+
+        const row = rows[0];
+
+        return new Client(
+            row.id,
+            row.username,
+            row.password,
+            row.first_name,
+            row.last_name,
+            row.phone,
+            row.email,
+            row.passkey
+        );
 
     }
+
 
     async findClientByEmail(email) {
 
         const [rows] = await this.pool.execute(`SELECT * FROM clients WHERE email = ?`, [email]);
-        return rows[0] || null;
+
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+        const row = rows[0];
+
+
+        return new Client(
+            row.id,
+            row.username,
+            row.password,
+            row.first_name,
+            row.last_name,
+            row.phone,
+            row.email,
+            row.passkey
+        );
 
     }
+
 
     async findAccountByNumber(accountNumber) {
 
         const [rows] = await this.pool.execute(`SELECT * FROM accounts WHERE account_number = ?`, [accountNumber]);
-        return rows[0] || null;
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+
+        const row = rows[0];
+
+        return new Account(
+            row.id,
+            row.client_id,
+            row.account_number,
+            row.balance
+        );
+
+
     }
+
 
     async findAccountByClientId(clientId) {
 
         const [rows] = await this.pool.execute(`SELECT * FROM accounts WHERE client_id = ?`, [clientId]);
-        return rows[0] || null;
+
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+
+        const row = rows[0];
+
+        return new Account(
+            row.id,
+            row.client_id,
+            row.account_number,
+            row.balance
+        );
+
     }
+
+
+
+
+    async updateAccountBalance(accountId, newBalance) {
+
+        const [result] = await this.pool.execute(`UPDATE accounts SET balance = ? WHERE id = ?;`, [newBalance, accountId]);
+        return result.affectedRows > 0;
+    }
+
+
 
 
 
