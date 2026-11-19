@@ -6,6 +6,8 @@ const Employee = require("../models/Employee");
 const Client = require("../models/Client");
 const Account = require("../models/Account");
 const Transaction = require("../models/Transaction");
+const Transfer = require("../models/Transfer");
+
 
 
 class BankService {
@@ -77,7 +79,7 @@ class BankService {
         return await bcrypt.compare(plainPasskey, hashedPasskey);
     }
 
-    
+
     async validateWithdrawal(accountNumber, amount, passKey) {
 
         if (!accountNumber || amount == null || !passKey) {
@@ -500,6 +502,161 @@ class BankService {
         return withdrawInfo;
 
     }
+
+
+    async transfer(sourceAccountNumber, destinationAccountNumber, amount, concept, passKey) {
+
+        if (!sourceAccountNumber || !destinationAccountNumber || amount == null || !concept || !passKey) {
+            return null;
+        }
+
+        if (sourceAccountNumber === destinationAccountNumber) {
+            return null;
+        }
+
+
+        amount = Number(amount);
+
+
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return null;
+        }
+
+        concept = concept.trim();
+
+
+        if (concept.length === 0 || concept.length > 200) {
+            return null;
+        }
+
+
+        const sourceAccount = await this.getAccountByNumber(sourceAccountNumber);
+        const destinationAccount = await this.getAccountByNumber(destinationAccountNumber);
+
+
+        if (!sourceAccount || !destinationAccount) {
+            return null;
+        }
+
+        const sourceClient = await this.searchClientById(sourceAccount.clientId);
+
+        if (!sourceClient) {
+            return null;
+        }
+
+        const validPasskey = await this.verifyPasskey(passKey, sourceClient.passkey);
+
+        if (!validPasskey) {
+            return null;
+        }
+
+        if (Number(sourceAccount.balance) < amount) {
+            return null;
+        }
+
+
+        sourceAccount.balance = Number(sourceAccount.balance) - amount;
+        destinationAccount.balance = Number(destinationAccount.balance) + amount;
+
+
+        const currentDate = this.getCurrentDateTime();
+
+        const transfer = new Transfer(null, sourceAccount.id, destinationAccount.id, amount, concept, currentDate);
+
+        const sourceTransaction = new Transaction(null, sourceAccount.id, "TRANSFER_OUT", amount, currentDate);
+        const destinationTransaction = new Transaction(null, destinationAccount.id, "TRANSFER_IN", amount, currentDate);
+
+
+        const result = await this.repository.performTransferTransaction(sourceAccount, destinationAccount, sourceTransaction, destinationTransaction, transfer);
+
+        
+        return {
+            transferId: result.transferId,
+            sourceTransactionId: result.sourceTransactionId,
+            destinationTransactionId: result.destinationTransactionId,
+            sourceAccountNumber,
+            destinationAccountNumber,
+            amount,
+            concept,
+            currentDate
+        };
+
+    }
+
+
+    async getTransactionHistory(accountNumber) {
+
+        if (!accountNumber) {
+            return null;
+        }
+
+        const account = await this.getAccountByNumber(accountNumber);
+
+        if (!account) {
+            return null;
+        }
+
+
+        const transactions = await this.repository.findTransactionsByAccountId(account.id);
+
+        const history = [];
+
+        for (const transaction of transactions) {
+
+            if (!transaction.transferId) {
+
+                history.push({
+                    transactionId: transaction.id,
+                    transferId: null,
+                    type: transaction.type,
+                    amount: transaction.amount,
+                    sourceAccountNumber: null,
+                    destinationAccountNumber: null,
+                    concept: null,
+                    date: transaction.date
+                });
+
+                continue;
+            }
+
+            const transfer = await this.bankRepository.findTransferById(transaction.transferId);
+
+
+            if (!transfer) {
+
+                history.push({
+                    transactionId: transaction.id,
+                    transferId: transaction.transferId,
+                    type: transaction.type,
+                    amount: transaction.amount,
+                    sourceAccountNumber: null,
+                    destinationAccountNumber: null,
+                    concept: null,
+                    date: transaction.date
+                });
+
+                continue;
+            }
+
+            const sourceAccount = await this.bankRepository.findAccountById(transfer.sourceAccountId);
+            const destinationAccount = await this.bankRepository.findAccountById(transfer.destinationAccountId);
+
+            history.push({
+                transactionId: transaction.id,
+                transferId: transfer.id,
+                type: transaction.type,
+                amount: transaction.amount,
+                sourceAccountNumber: sourceAccount ? sourceAccount.accountNumber : null,
+                destinationAccountNumber: destinationAccount ? destinationAccount.accountNumber : null,
+                concept: transfer.concept,
+                date: transaction.date
+            });
+
+        }
+
+        return history;
+    }
+
 
 
 

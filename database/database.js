@@ -64,6 +64,21 @@ async function createTableAccounts() {
 }
 
 
+async function createTableTransfers() {
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS transfers(
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        source_account_id INT NOT NULL,
+        destination_account_id INT NOT NULL,
+        amount DECIMAL(12, 2) NOT NULL,
+        concept VARCHAR(200) NOT NULL,  
+        date DATETIME NOT NULL,
+        FOREIGN KEY (source_account_id) REFERENCES accounts(id),
+        FOREIGN KEY (destination_account_id) REFERENCES accounts(id)
+    );`);
+}
+
+
 async function createTableTransactions() {
 
     await pool.query(`CREATE TABLE IF NOT EXISTS transactions(
@@ -72,10 +87,14 @@ async function createTableTransactions() {
         type VARCHAR(100) NOT NULL,
         amount DECIMAL(12, 2) NOT NULL,
         date DATETIME NOT NULL, 
+        transfer_id INT NULL,
+        FOREIGN KEY (transfer_id) REFERENCES transfers(id), 
         FOREIGN KEY (account_id) REFERENCES accounts(id)
     );`);
     
 }
+
+
 
 
 async function createTables() {
@@ -84,6 +103,7 @@ async function createTables() {
     await createTableClients();
     await createTableAccounts();
     await createTableTransactions();
+    await createTableTransfers();
 
 }
 

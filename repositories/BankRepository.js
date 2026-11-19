@@ -2,6 +2,8 @@
 const Employee = require("../models/Employee");
 const Client = require("../models/Client");
 const Account = require("../models/Account");
+const Transaction = require("../models/Transaction");
+const Transfer = require("../models/Transfer");
 
 
 
@@ -12,7 +14,6 @@ class BankRepository {
     constructor(pool) {
         this.pool = pool;
     }
-
 
 
     async insertEmployee(employee) {
@@ -49,6 +50,14 @@ class BankRepository {
             VALUES (?, ?, ?, ?)`, [transaction.accountId, transaction.type, transaction.amount, transaction.date]);
         
         return result.insertId;
+    }
+
+    async insertTransfer(transfer) {
+
+        const [result] = await this.pool.execute(`INSERT INTO transfers (source_account_id, destination_account_id, amount, concept, date) VALUES (?, ?, ?, ?, ?)`, [transfer.sourceAccountId, transfer.destinationAccountId, transfer.amount, transfer.concept, transfer.date]);
+
+        return result.insertId;
+
     }
 
 
@@ -248,7 +257,6 @@ class BankRepository {
             return null;
         }
 
-
         const row = rows[0];
 
         return new Account(
@@ -260,6 +268,48 @@ class BankRepository {
 
     }
 
+    async findAccountById(accountId) {
+
+        const [rows] = await this.pool.execute(`SELECT * FROM accounts WHERE id = ?`, [accountId]);
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+        const row = rows[0];
+
+        return new Account(row.id, row.client_id, row.account_number, row.balance);
+    }
+
+
+    async findTransactionsByAccountId(accountId) {
+
+        const [rows] = await this.pool.execute(`SELECT * FROM transactions WHERE account_id = ? ORDER BY date DESC`, [accountId]);
+
+        return rows.map(row => new Transaction(row.id, row.account_id, row.type, row.amount, row.date, row.transfer_id));
+    }
+
+
+    async findTransfersByAccountId(accountId) {
+
+        const [rows] = await this.pool.execute(`SELECT * FROM transfers WHERE source_account_id = ? OR destination_account_id = ? ORDER BY date DESC`, [accountId, accountId]);
+
+        return rows.map(row => new Transfer(row.id, row.source_account_id, row.destination_account_id, row.amount, row.concept, row.date));
+    }
+
+    async findTransferById(transferId) {
+
+        const [rows] = await this.pool.execute(`SELECT * FROM transfers WHERE id = ?`, [transferId]);
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+        const row = rows[0];
+
+        return new Transfer(row.id, row.source_account_id, row.destination_account_id, row.amount, row.concept, row.date);
+    }
+
 
 
 
@@ -269,6 +319,56 @@ class BankRepository {
         return result.affectedRows > 0;
     }
 
+
+
+
+    async performTransferTransaction(sourceAccount, destinationAccount, sourceTransaction, destinationTransaction, transfer) {
+
+        const connection = await this.pool.getConnection();
+
+        try {
+
+            await connection.beginTransaction();
+
+            const [sourceUpdate] = await connection.execute(`UPDATE accounts SET balance = ? WHERE id = ?`, [sourceAccount.balance, sourceAccount.id]);
+
+            if (sourceUpdate.affectedRows === 0) {
+                throw new Error("SOURCE ACCOUNT COULD NOT BE UPDATED");
+            }
+
+            const [destinationUpdate] = await connection.execute(`UPDATE accounts SET balance = ? WHERE id = ?`, [destinationAccount.balance, destinationAccount.id]);
+
+            if (destinationUpdate.affectedRows === 0) {
+                throw new Error("DESTINATION ACCOUNT COULD NOT BE UPDATED");
+            }
+
+            const [transferResult] = await connection.execute(`INSERT INTO transfers (source_account_id, destination_account_id, amount, concept, date) VALUES (?, ?, ?, ?, ?)`, [transfer.sourceAccountId, transfer.destinationAccountId, transfer.amount, transfer.concept, transfer.date]);
+
+            const transferId = transferResult.insertId;
+
+            const [sourceTransactionResult] = await connection.execute(`INSERT INTO transactions (account_id, type, amount, date, transfer_id) VALUES (?, ?, ?, ?, ?)`, [sourceTransaction.accountId, sourceTransaction.type, sourceTransaction.amount, sourceTransaction.date, transferId]);
+
+            const [destinationTransactionResult] = await connection.execute(`INSERT INTO transactions (account_id, type, amount, date, transfer_id) VALUES (?, ?, ?, ?, ?)`, [destinationTransaction.accountId, destinationTransaction.type, destinationTransaction.amount, destinationTransaction.date, transferId]);
+
+            await connection.commit();
+
+            return {
+                transferId,
+                sourceTransactionId: sourceTransactionResult.insertId,
+                destinationTransactionId: destinationTransactionResult.insertId
+            };
+
+        } catch (error) {
+
+            await connection.rollback();
+            throw error;
+
+        } finally {
+
+            connection.release();
+        }
+
+    }
 
 
 
