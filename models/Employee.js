@@ -9,8 +9,10 @@ class Employee extends Person {
         this.position = position;
     }
 
-
 }
 
 
 module.exports = Employee;
+
+
+

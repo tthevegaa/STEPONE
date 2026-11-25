@@ -1,0 +1,40 @@
+
+
+
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: stepone-mysql
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+
+
+    volumes:
+      - stepone_mysql_data:/var/lib/mysql
+
+  api:
+    build: .
+    container_name: stepone-api
+    restart: unless-stopped
+
+    depends_on:
+      - mysql
+
+    environment:
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      PORT: 3000
+
+    ports:
+      - "3000:3000"
+
+volumes:
+  stepone_mysql_data:
+
+

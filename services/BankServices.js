@@ -412,96 +412,108 @@ class BankService {
 
     }
 
-
     async deposit(account, amount) {
 
         if (!account || amount == null) {
             return null;
         }
 
-        if (amount <= 0) {
+        amount = Number(amount);
+
+        if (!Number.isFinite(amount) || amount <= 0) {
             return null;
         }
 
+        account.balance = Number(account.balance) + amount;
 
-        const newBalance = Number(account.balance) + Number(amount);
-        const balanceUpdated = await this.updateAccountBalance(account.id, newBalance);
-        if (!balanceUpdated) {
-            return null;
-        }
+        const currentDate = this.getCurrentDateTime();
 
-        
-        const data = {
-            accountId: account.id, 
-            type: "DEPOSIT", 
-            amount
-        }
+        const transaction = new Transaction(
+            null,
+            account.id,
+            "DEPOSIT",
+            amount,
+            currentDate
+        );
 
-        const depositInfo = await this.registerTransaction(data);
-        if (!depositInfo) {
-            return null;
-        }
+        const transactionId = await this.repository.performDepositTransaction(
+            account,
+            transaction
+        );
 
-
-        return depositInfo;
-
+        return {
+            transactionId,
+            accountId: account.id,
+            amount,
+            currentDate
+        };
     }
+
 
 
     async withdraw(accountNumber, amount, passKey) {
 
-        if (!accountNumber || amount == null) {
+        if (!accountNumber || amount == null || !passKey) {
             return null;
         }
 
-        if (amount <= 0) {
+        amount = Number(amount);
+
+        if (!Number.isFinite(amount) || amount <= 0) {
             return null;
         }
 
-        const currentAccount = await this.getAccountByNumber(accountNumber);
-        if (!currentAccount) {
+        const account = await this.getAccountByNumber(accountNumber);
+
+        if (!account) {
             return null;
         }
 
-        const client = await this.searchClientById(currentAccount.clientId);
+        const client = await this.searchClientById(account.clientId);
+
         if (!client) {
             return null;
         }
 
 
         const validPasskey = await this.verifyPasskey(passKey, client.passkey);
+
         if (!validPasskey) {
             return null;
         }
 
 
-        if (Number(currentAccount.balance) < Number(amount)) {
+        if (Number(account.balance) < amount) {
             return null;
         }
 
-        const newBalance = Number(currentAccount.balance) - Number(amount);
-        const balanceUpdated = await this.updateAccountBalance(currentAccount.id, newBalance);
-        if (!balanceUpdated) {
-            return null;
-        }
+        account.balance = Number(account.balance) - amount;
 
 
-        const data = {
-            accountId: currentAccount.id, 
-            type: "WITHDRAW",
-            amount
-        }
-
-        const withdrawInfo = await this.registerTransaction(data);
-        if (!withdrawInfo) {
-            return null;
-        }
+        const currentDate = this.getCurrentDateTime();
 
 
+        const transaction = new Transaction(
+            null,
+            account.id,
+            "WITHDRAW",
+            amount,
+            currentDate
+        );
 
-        return withdrawInfo;
+
+        const transactionId = await this.repository.performWithdrawalTransaction(account, transaction);
+
+
+        return {
+            transactionId,
+            accountId: account.id,
+            amount,
+            currentDate
+        };
 
     }
+
 
 
     async transfer(sourceAccountNumber, destinationAccountNumber, amount, concept, passKey) {
@@ -619,7 +631,7 @@ class BankService {
                 continue;
             }
 
-            const transfer = await this.bankRepository.findTransferById(transaction.transferId);
+            const transfer = await this.repository.findTransferById(transaction.transferId);
 
 
             if (!transfer) {
@@ -638,8 +650,8 @@ class BankService {
                 continue;
             }
 
-            const sourceAccount = await this.bankRepository.findAccountById(transfer.sourceAccountId);
-            const destinationAccount = await this.bankRepository.findAccountById(transfer.destinationAccountId);
+            const sourceAccount = await this.repository.findAccountById(transfer.sourceAccountId);
+            const destinationAccount = await this.repository.findAccountById(transfer.destinationAccountId);
 
             history.push({
                 transactionId: transaction.id,

@@ -24,8 +24,8 @@ async function main() {
         await ui.start();
 
     } catch (error) {
-        console.log("DATABASE COULD NOT BE CONNECTED");
-        console.log(error.message);
+        console.log("SYSTEM ERROR");
+        console.log(error);
     }
 
 }

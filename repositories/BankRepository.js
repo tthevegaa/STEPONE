@@ -372,6 +372,104 @@ class BankRepository {
 
 
 
+    async performDepositTransaction(account, transaction) {
+
+        const connection = await this.pool.getConnection();
+
+        try {
+
+            await connection.beginTransaction();
+
+            const [accountUpdate] = await connection.execute(`UPDATE accounts SET balance = ? WHERE id = ?`,[account.balance, account.id]);
+
+
+            if (accountUpdate.affectedRows === 0) {
+                throw new Error("ACCOUNT COULD NOT BE UPDATED");
+            }
+
+
+            const [transactionResult] = await connection.execute(
+                `INSERT INTO transactions (account_id, type, amount, date, transfer_id)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [
+                    transaction.accountId,
+                    transaction.type,
+                    transaction.amount,
+                    transaction.date,
+                    null
+                ]
+            );
+
+
+            await connection.commit();
+
+            return transactionResult.insertId;
+
+        } catch (error) {
+
+            await connection.rollback();
+            throw error;
+
+        } finally {
+
+            connection.release();
+        }
+
+    }
+
+
+
+
+    async performWithdrawalTransaction(account, transaction) {
+
+        const connection = await this.pool.getConnection();
+
+        try {
+
+            await connection.beginTransaction();
+
+            const [accountUpdate] = await connection.execute(
+                `UPDATE accounts SET balance = ? WHERE id = ?`,
+                [account.balance, account.id]
+            );
+
+
+            if (accountUpdate.affectedRows === 0) {
+                throw new Error("ACCOUNT COULD NOT BE UPDATED");
+            }
+
+
+            const [transactionResult] = await connection.execute(
+                `INSERT INTO transactions (account_id, type, amount, date, transfer_id)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [
+                    transaction.accountId,
+                    transaction.type,
+                    transaction.amount,
+                    transaction.date,
+                    null
+                ]
+            );
+
+
+            await connection.commit();
+
+            return transactionResult.insertId;
+
+        } catch (error) {
+
+            await connection.rollback();
+            throw error;
+
+        } finally {
+
+            connection.release();
+        }
+
+    }
+
+
+
 
 }
 

@@ -1,8 +1,10 @@
 
 
 
-require("dotenv").config();
 const mysql = require("mysql2/promise");
+const bcrypt = require("bcryptjs");
+
+require("dotenv").config();
 
 
 const pool = mysql.createPool({
@@ -11,7 +13,6 @@ const pool = mysql.createPool({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME
 });
-
 
 module.exports = pool;
 
@@ -35,8 +36,40 @@ async function createTableEmployees() {
 } 
 
 
-async function createTableClients() {
 
+async function createDefaultAdmin() {
+
+    const [rows] = await pool.query(
+        `SELECT id FROM employees WHERE username = ?`,
+        ["admin"]
+    );
+
+    if (rows.length > 0) {
+        return;
+    }
+
+    const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
+
+    await pool.query(
+        `INSERT INTO employees
+        (username, password, first_name, last_name, phone, email, employee_number, position)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            "admin",
+            hashedPassword,
+            "System",
+            "Administrator",
+            null,
+            "admin@stepone.local",
+            10000001,
+            "Administrator"
+        ]
+    );
+
+}
+
+
+async function createTableClients() {
 
     await pool.query(`CREATE TABLE IF NOT EXISTS clients(
         id INT PRIMARY KEY AUTO_INCREMENT,
@@ -96,14 +129,14 @@ async function createTableTransactions() {
 
 
 
-
 async function createTables() {
 
     await createTableEmployees();
+    await createDefaultAdmin();
     await createTableClients();
     await createTableAccounts();
-    await createTableTransactions();
     await createTableTransfers();
+    await createTableTransactions();
 
 }
 
